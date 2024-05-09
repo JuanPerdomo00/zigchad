@@ -27,6 +27,8 @@ import re
 from cansii import CAnsii as c
 
 
+___version__ = "0.1"
+
 class RequestPageZig:
     def __init__(self):
         self._path_file_json_zig = "/tmp/.zigreleses.json"
@@ -149,10 +151,12 @@ class RequestPageZig:
             )  # check path file `os.path.basename(__file__)`
 
 
+
 def arg_parse() -> argparse.Namespace:
     parse = argparse.ArgumentParser(
         description="Download and update zig versions", usage="zigupdate [args]"
     )
+    parse.add_argument("--version", "-v", help="prints the version and ends with a successful output 0", action="store-true")
     parse.add_argument(
         "--list-releases",
         "-lr",
