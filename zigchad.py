@@ -33,10 +33,18 @@ BYTES_IN_KB: int = 1024
 
 
 class RequestHandler:
+    """This class is only responsible for downloading and reading the json file that comes from the official zig page"""
     def __init__(self, url: str) -> None:
         self.url = url
 
-    def download_json(self):
+    def download_json(self) -> int:
+        """
+        The `download_json` method is responsible for fetching the json file from the official zig website 
+        and downloading it to the temporary tmp path specified in the `ZIG_RELEASES_FILE` command.
+
+        Returns:
+            int
+        """
         try:
             response = requests.get(self.url)
             if response.status_code == 200:
@@ -52,6 +60,11 @@ class RequestHandler:
         return 1
 
     def read_json(self) -> dict:
+        """read the json file and parse it area and it will return the dictionary with all its attributes
+
+        Returns:
+            dict
+        """
         if not os.path.exists(ZIG_RELEASES_FILE):
             if self.download_json() == 0:
                 pass
@@ -64,6 +77,10 @@ class RequestHandler:
 
 
 class ZigReleaseInfo:
+    """
+    The `Zig ReleaseInfo` class is one of the most important, 
+    as it is responsible for validating and listing certain zig versions among all versions or a specific one.
+    """
     def __init__(self, data):
         self.data = data
 
@@ -78,11 +95,19 @@ class ZigReleaseInfo:
                 )
             exit(0)
 
-    def info_version(self, version: str):
+    def info_version(self, version: str) -> dict:
+        """
+
+        Args:
+            version (str): _description_
+
+        Returns:
+            dict: _description_
+        """
         data = self.data
         version_releases = [k for k, _ in data.items()]
         if version in version_releases:
-            print(f"Details for version: {c.green(version):>10}\n")
+            print(f"Details for version🦎: {c.green(version):>10}\n")
             for k, v in data[version].items():
                 if isinstance(v, dict):
                     print(f"{c.green(k)}:")
@@ -102,6 +127,16 @@ class ZigReleaseInfo:
 
     @staticmethod
     def human_size_utils(sbytes: int) -> str:
+        """
+        The static method `human_size_utils` 
+        is only responsible for calculating the number of bytes and returning me in a more human-readable quantity.
+
+        Args:
+            sbytes (int)
+
+        Returns:
+            str
+        """
         if sbytes < BYTES_IN_KB:
             return f"{sbytes} B"
         elif sbytes < BYTES_IN_KB**2:
@@ -113,20 +148,71 @@ class ZigReleaseInfo:
 
 
 class DownloadZigTar(ZigReleaseInfo):
-    def __init__(self, data: dict, zig_version: str = "", shasum: str = ""):
+    """This class is the logic to download the tar file that is specified"""
+    def __init__(self, data: dict, architecture: str, zig_version: str):
         super().__init__(data)
+        self.architecture = architecture
         self.zig_version = zig_version
-        self.shasum = shasum
 
-    def download(self):
+    def download(self, path: str) -> None:
+        """
+        The download method does more than one thing, it will show and parse by architecture if it exists and will download the tar, 
+        if it does not exist it will not.
+
+        Args:
+            path (str)
+        """
         data = self.data
-        for k, v in data.items():
-            print(k)
+        url_tar: str = None
+        for version, releases in data.items():
+            if self.zig_version and version != self.zig_version:
+                continue
+            for karchzig, varchzig in releases.items():
+                if karchzig == self.architecture:
+                    print(f"{c.yellow('Version')}: {version}")
+                    print(f"{c.yellow('Architecture')}: {self.architecture}")
+                    for sub_key, sub_value in varchzig.items():
+                        if sub_key == "tarball":
+                            url_tar = sub_value
+                        if sub_key == "size":
+                            sub_value = self.human_size_utils(int(sub_value))
+                        print(f"{c.yellow(sub_key)}: {sub_value}")
+
+        if url_tar is None:
+            print(
+                c.red(
+                    f"No download URL found for architecture '{self.architecture}' and version '{self.zig_version}'. "
+                )
+            )
+            print(
+                c.red(
+                    f"Use: Use: {os.path.basename(__file__)} -h or --help for more info 🦎"
+                )
+            )
+            exit(1)
+
+        response = requests.get(url_tar)
+        if response.status_code == 200:
+            if os.path.isdir(path):
+                filename = os.path.join(
+                    path, f"zig-{self.zig_version}-{self.architecture}.tar.xz"
+                )
+            else:
+                filename = path
+
+            with open(filename, "wb") as f:
+                f.write(response.content)
+                print(c.green(f"File downloaded successfully to: {filename}"))
+                exit(0)
+
+        else:
+            print(f"Failed to download file from URL: {url_tar}")
+            exit(1)
 
 
 def parse_args():
     parse = argparse.ArgumentParser(
-        description="Download and update zig versions", usage="zigpy [args]"
+        description="Download and update zig versions 🦎", usage="zigchad [args]"
     )
     parse.add_argument(
         "--version",
@@ -150,9 +236,13 @@ def parse_args():
     parse.add_argument(
         "--download",
         "-d",
-        metavar=(f"{c.green("[version zig]")}", f"{c.green("[shasum]")}"),
-        nargs=2,
-        help="Download Zig binary by providing the version and part of the shasum",
+        metavar=(
+            f"{c.green("[version zig]")}",
+            f"{c.green("[architecture]")}",
+            f"{c.green("[path]")}",
+        ),
+        nargs=3,
+        help="Download Zig binary by providing the version, architecture and path",
     )
 
     return parse.parse_args()
@@ -170,12 +260,15 @@ def main() -> None:
     elif args.info_version_zig:
         release_info.info_version(args.info_version_zig)
     elif args.download:
-        version, shasum = args.download
-        download = DownloadZigTar(data, version, shasum)
-        download.download()
+        version, architecture, path = args.download
+        download = DownloadZigTar(data, architecture=architecture, zig_version=version)
+        download.download(path)
     elif args.version:
         print(f"zigpy {VERSION}\nWritten by Jakepys GH@JuanPerdomo00")
         exit(0)
+    else:
+        print(f"Use: {os.path.basename(__file__)} -h or --help for more info 🦎")
+        exit(1)
 
 
 if __name__ == "__main__":
