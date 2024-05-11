@@ -21,12 +21,11 @@
 
 import argparse
 import requests
-import enum
 import json
 import os
 from cansii import CAnsii as c
 
-VERSION: str = "0.1.1"
+VERSION: str = "0.1.2"
 ZIG_WEG: str = "https://ziglang.org/download/index.json"
 ZIG_RELEASES_FILE: str = "/tmp/.zigreleses.json"
 BYTES_IN_KB: int = 1024
@@ -237,9 +236,9 @@ def parse_args():
         "--download",
         "-d",
         metavar=(
-            f"{c.green("[version zig]")}",
-            f"{c.green("[architecture]")}",
-            f"{c.green("[path]")}",
+            f"{c.green('[version zig]')}",
+            f"{c.green('[architecture]')}",
+            f"{c.green('[path]')}",
         ),
         nargs=3,
         help="Download Zig binary by providing the version, architecture and path",
