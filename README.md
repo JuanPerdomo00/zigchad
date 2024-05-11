@@ -13,7 +13,7 @@ ZigChad is a command-line tool for downloading and updating Zig versions. It all
 1. Clone the repository:
 
     ```bash
-    git clone https://github.com/your_username/ZigChad.git
+    git clone https://github.com/JuanPerdomo00/zigchad
     ```
 
 2. Navigate to the project directory:
