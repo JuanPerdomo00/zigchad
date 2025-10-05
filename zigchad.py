@@ -21,24 +21,52 @@
 
 import argparse
 import requests
+import tarfile
 import json
 import os
-from cansii import CAnsii as c
 
-VERSION: str = "0.1.2"
+VERSION: str = "0.1.3"
 ZIG_WEG: str = "https://ziglang.org/download/index.json"
 ZIG_RELEASES_FILE: str = "/tmp/.zigreleses.json"
 BYTES_IN_KB: int = 1024
 
 
+class Color:
+    RESET = "\033[0m"
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    CYAN = "\033[36m"
+
+    @staticmethod
+    def green(text: str) -> str:
+        return f"{Color.GREEN}{text}{Color.RESET}"
+
+    @staticmethod
+    def yellow(text: str) -> str:
+        return f"{Color.YELLOW}{text}{Color.RESET}"
+
+    @staticmethod
+    def red(text: str) -> str:
+        return f"{Color.RED}{text}{Color.RESET}"
+
+    @staticmethod
+    def cyan(text: str) -> str:
+        return f"{Color.CYAN}{text}{Color.RESET}"
+
+
+c: Color = Color()
+
+
 class RequestHandler:
     """This class is only responsible for downloading and reading the json file that comes from the official zig page"""
+
     def __init__(self, url: str) -> None:
         self.url = url
 
     def download_json(self) -> int:
         """
-        The `download_json` method is responsible for fetching the json file from the official zig website 
+        The `download_json` method is responsible for fetching the json file from the official zig website
         and downloading it to the temporary tmp path specified in the `ZIG_RELEASES_FILE` command.
 
         Returns:
@@ -52,7 +80,9 @@ class RequestHandler:
                 return 0
             else:
                 print(
-                    f"Error: Failed to download JSON, error code: {response.status_code}"
+                    f"Error: Failed to download JSON, error code: {
+                        response.status_code
+                    }"
                 )
         except requests.exceptions.RequestException as e:
             print(f"Error: Failed to make request: {e}")
@@ -77,9 +107,10 @@ class RequestHandler:
 
 class ZigReleaseInfo:
     """
-    The `Zig ReleaseInfo` class is one of the most important, 
+    The `Zig ReleaseInfo` class is one of the most important,
     as it is responsible for validating and listing certain zig versions among all versions or a specific one.
     """
+
     def __init__(self, data):
         self.data = data
 
@@ -90,7 +121,8 @@ class ZigReleaseInfo:
             print(f"{'Version':>15} {'Date':>7}\n")
             for i, (version, _) in enumerate(data.items()):
                 print(
-                    f"{c.green(f'[{i}]'):<10} \t{version:<10} {data[version]['date']:<10}"
+                    f"{c.green(f'[{i}]'):<10} \t{version:<10} {
+                        data[version]['date']:<10}"
                 )
             exit(0)
 
@@ -119,7 +151,11 @@ class ZigReleaseInfo:
         else:
             print(f"Version [{c.red(version)}] not found.")
             print(
-                f"{c.cyan(f'Use: {os.path.basename(__file__)} -h or --help for more info')}"
+                f"{
+                    c.cyan(
+                        f'Use: {os.path.basename(__file__)} -h or --help for more info'
+                    )
+                }"
             )
 
         return data
@@ -127,7 +163,7 @@ class ZigReleaseInfo:
     @staticmethod
     def human_size_utils(sbytes: int) -> str:
         """
-        The static method `human_size_utils` 
+        The static method `human_size_utils`
         is only responsible for calculating the number of bytes and returning me in a more human-readable quantity.
 
         Args:
@@ -141,21 +177,23 @@ class ZigReleaseInfo:
         elif sbytes < BYTES_IN_KB**2:
             return f"{sbytes / BYTES_IN_KB:.2f} KB"
         elif sbytes < BYTES_IN_KB**3:
-            return f"{sbytes / BYTES_IN_KB ** 2:.2f} MB"
+            return f"{sbytes / BYTES_IN_KB**2:.2f} MB"
         else:
-            return f"{sbytes / BYTES_IN_KB ** 3:.2f} GB"
+            return f"{sbytes / BYTES_IN_KB**3:.2f} GB"
 
 
 class DownloadZigTar(ZigReleaseInfo):
     """This class is the logic to download the tar file that is specified"""
+
     def __init__(self, data: dict, architecture: str, zig_version: str):
         super().__init__(data)
         self.architecture = architecture
         self.zig_version = zig_version
+        self.file_tar = ""
 
     def download(self, path: str) -> None:
         """
-        The download method does more than one thing, it will show and parse by architecture if it exists and will download the tar, 
+        The download method does more than one thing, it will show and parse by architecture if it exists and will download the tar,
         if it does not exist it will not.
 
         Args:
@@ -180,12 +218,16 @@ class DownloadZigTar(ZigReleaseInfo):
         if url_tar is None:
             print(
                 c.red(
-                    f"No download URL found for architecture '{self.architecture}' and version '{self.zig_version}'. "
+                    f"No download URL found for architecture '{
+                        self.architecture
+                    }' and version '{self.zig_version}'."
                 )
             )
             print(
                 c.red(
-                    f"Use: Use: {os.path.basename(__file__)} -h or --help for more info 🦎"
+                    text=f"Use: {
+                        os.path.basename(__file__)
+                    } -h or --help for more info 🦎"
                 )
             )
             exit(1)
@@ -193,20 +235,26 @@ class DownloadZigTar(ZigReleaseInfo):
         response = requests.get(url_tar)
         if response.status_code == 200:
             if os.path.isdir(path):
-                filename = os.path.join(
-                    path, f"zig-{self.zig_version}-{self.architecture}.tar.xz"
-                )
+                self.file_tar = f"zig-{self.zig_version}.tar.xz"
+                filename = os.path.join(path, self.file_tar)
             else:
                 filename = path
 
             with open(filename, "wb") as f:
                 f.write(response.content)
-                print(c.green(f"File downloaded successfully to: {filename}"))
-                exit(0)
+                print(c.green(text=f"File downloaded successfully to: {filename}"))
 
+            self._extract_zig_version(filename, path)
+
+            exit(0)
         else:
             print(f"Failed to download file from URL: {url_tar}")
             exit(1)
+
+    def _extract_zig_version(self, file: str, path: str) -> None:
+        with tarfile.open(file, "r:*") as tar:
+            tar.extractall(path=path, filter="data")
+            print(c.green(f"Extracted in {path}"))
 
 
 def parse_args():
@@ -229,16 +277,16 @@ def parse_args():
         "--info-version-zig",
         "-ivz",
         help="prints the information of a specific version",
-        metavar=f"{c.green('[zig version]')}",
+        metavar=f"{c.green(text='[zig version]')}",
     )
 
     parse.add_argument(
         "--download",
         "-d",
         metavar=(
-            f"{c.green('[version zig]')}",
-            f"{c.green('[architecture]')}",
-            f"{c.green('[path]')}",
+            f"{c.green(text='[version zig]')}",
+            f"{c.green(text='[architecture]')}",
+            f"{c.green(text='[path]')}",
         ),
         nargs=3,
         help="Download Zig binary by providing the version, architecture and path",
@@ -263,7 +311,7 @@ def main() -> None:
         download = DownloadZigTar(data, architecture=architecture, zig_version=version)
         download.download(path)
     elif args.version:
-        print(f"zigpy {VERSION}\nWritten by Jakepys GH@JuanPerdomo00")
+        print(f"zigchad {VERSION}\nWritten by Jakepys GH@JuanPerdomo00")
         exit(0)
     else:
         print(f"Use: {os.path.basename(__file__)} -h or --help for more info 🦎")
